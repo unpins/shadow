@@ -41,8 +41,10 @@ let
   multicall = pkgs.pkgsStatic.shadow.overrideAttrs (old: {
     pname = "shadow-multi";
 
-    # Drop the nixpkgs `su` output split: we want su inside the multicall.
-    outputs = [ "out" "dev" "man" ];
+    # Drop nixpkgs's multi-output split: we ship only the multicall
+    # binary; dev/man would be empty under our installPhase override
+    # (which skips `make install`) and nix errors on missing outputs.
+    outputs = [ "out" ];
 
     postBuild = (old.postBuild or "") + ''
       set -e
@@ -198,38 +200,47 @@ let
         exit 1
       fi
 
-      # Per-tool: ld -r the .o set, then rename main → <tool>_main and
-      # every other defined global → <tool>__<sym>. Compiler-emitted COMDAT
-      # thunks (`__x86.get_pc_thunk.*`) are skipped so libgcc + dedup
-      # still resolve them at the final link.
-      __sh_combine() {
-        local tool=$1 objs=$2
-        $LD -r -o multicall/$tool.combined.o $objs
-        local -a redefs=()
-        while read -r old new; do
-          [ -n "$old" ] || continue
-          redefs+=(--redefine-sym "$old=$new")
-        done < <(
-          $NM --defined-only -g multicall/$tool.combined.o \
-            | awk -v s="$tool" \
-                '$2 ~ /^[TBDR]$/ && $3 !~ /^__x86\.get_pc_thunk\./ {
-                    old = $3
-                    if (old == "main") new = s "_main"
-                    else                new = s "__" old
-                    print old, new
-                }'
-        )
-        if [ ''${#redefs[@]} -gt 0 ]; then
-          $OBJCOPY "''${redefs[@]}" multicall/$tool.combined.o
-        fi
-      }
+      # X+Z: rebuild each tool with renames at preprocessor time.
+      # Most shadow tools are single-source so no shared .c clobber risk,
+      # but login/su are multi-source and we use the same per-tool
+      # isolation pattern (multicall/<tool>/<flat>.o) as procps/e2fsprogs
+      # to keep the recipe uniform. Bitcode end-to-end, no ld -r, no
+      # objcopy --redefine-sym.
+      _orig_NIX_CFLAGS_COMPILE=''${NIX_CFLAGS_COMPILE:-}
 
-      : > multicall/combined.list
+      # Phase A: discovery (write rename headers from first-pass .o)
       : > multicall/applets.list
       while IFS=$'\t' read -r tool objs; do
-        __sh_combine "$tool" "$objs"
-        echo "multicall/$tool.combined.o" >> multicall/combined.list
+        {
+          echo "/* multicall rename header: $tool */"
+          echo "#define main ''${tool}_main"
+          # Filter to valid C identifiers: gcc LTO sometimes emits
+          # globals with dot-disambiguation suffixes that aren't legal
+          # cpp macro names.
+          $NM --defined-only -g $objs 2>/dev/null \
+            | awk -v t="$tool" '
+                $2 ~ /^[TBDRWVC]$/ \
+                  && $3 ~ /^[A-Za-z_][A-Za-z0-9_]*$/ \
+                  && $3 != "main" {
+                  if (!seen[$3]++) print "#define " $3 " " t "__" $3
+                }'
+        } > multicall/$tool.rename.h
         printf '%s\t%s\n' "$tool" "$tool" >> multicall/applets.list
+      done < multicall/tools.filtered.tsv
+
+      # Phase B: per-tool rebuild + isolate
+      : > multicall/all_objs.list
+      while IFS=$'\t' read -r tool objs; do
+        rm -f $objs
+        NIX_CFLAGS_COMPILE="$_orig_NIX_CFLAGS_COMPILE -include $PWD/multicall/$tool.rename.h" \
+          make -j''${NIX_BUILD_CORES:-1} $objs
+
+        mkdir -p multicall/$tool
+        for obj in $objs; do
+          flat=$(echo "$obj" | tr '/' '_')
+          cp "$obj" "multicall/$tool/$flat"
+          echo "multicall/$tool/$flat" >> multicall/all_objs.list
+        done
       done < multicall/tools.filtered.tsv
 
       # Capture install-am symlink aliases: `ln -sf <target> $(DESTDIR)$(...)/<alias>`.
@@ -313,7 +324,7 @@ DISPATCHER_TAIL
       install -m644 ${multicallMk} unpin-multicall.mk
 
       make -f Makefile -f unpin-multicall.mk \
-        MULTI_COMBINED_OBJS="$(tr '\n' ' ' < multicall/combined.list)" \
+        MULTI_TOOL_OBJS="$(tr '\n' ' ' < multicall/all_objs.list)" \
         MULTI_GROUP_OPEN="-Wl,--start-group" \
         MULTI_GROUP_CLOSE="-Wl,--end-group" \
         MULTI_LIBGCC="-lgcc" \
@@ -322,36 +333,34 @@ DISPATCHER_TAIL
       cd ..
     '';
 
-    # Replace nixpkgs's install (which moves su to $su) entirely: wipe
-    # $out/bin and $out/sbin, install the multicall + applet symlinks.
-    postInstall = ''
-      rm -rf "$out/bin" "$out/sbin"
+    # Skip upstream's `make install`: after X+Z's per-tool recompile
+    # (which renamed `main` to `<tool>_main` in every tool's .o files),
+    # automake's install rule would relink each src/<tool> binary
+    # — those links can't resolve `main` because we renamed it. We
+    # only need the multicall + applet symlinks.
+    installPhase = ''
+      runHook preInstall
       mkdir -p "$out/bin"
       install -m755 src/multicall/shadow "$out/bin/shadow"
       while IFS=$'\t' read -r tool san; do
         ln -s shadow "$out/bin/$tool"
       done < src/multicall/applets.list
+      runHook postInstall
     '';
   });
 
+  # X+Z final link: dispatcher.o + each tool's renamed .o files (bitcode)
+  # + libshadow.a + libsubid.a + libxcrypt/libbsd. lto-plugin runs full
+  # chain-LTO across tools + libs + musl.
   multicallMk = pkgs.writeText "unpin-shadow-multicall.mk" ''
     MULTI_OUT ?= multicall/shadow
 
     .PHONY: multicall-link
     multicall-link: $(MULTI_OUT)
 
-    # `$(top_builddir)/lib/.libs/libshadow.a` is the libtool convenience
-    # archive used by every program. `libsubid.a` is needed for the subid
-    # tools (newgidmap, newuidmap, getsubids). `-lcrypt -lbsd` cover
-    # pkgsStatic.shadow's propagated buildInputs.
-    #
-    # Per-tool $(LIB*) slots (LIBSELINUX, LIBPAM, LIBAUDIT, …) expand to
-    # empty when configure didn't find them — pkgsStatic disables those, so
-    # we link only crypt + bsd. The `LIBS` ambient absorbs the autoconf
-    # autodetect set on top.
-    $(MULTI_OUT): multicall/dispatcher.o $(MULTI_COMBINED_OBJS)
+    $(MULTI_OUT): multicall/dispatcher.o $(MULTI_TOOL_OBJS)
     	$(CC) $(AM_LDFLAGS) $(LDFLAGS) -o $@ \
-    		multicall/dispatcher.o $(MULTI_COMBINED_OBJS) \
+    		multicall/dispatcher.o $(MULTI_TOOL_OBJS) \
     		$(MULTI_GROUP_OPEN) \
     		$(top_builddir)/lib/.libs/libshadow.a \
     		$(top_builddir)/libsubid/.libs/libsubid.a \
