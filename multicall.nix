@@ -359,6 +359,13 @@ DISPATCHER_TAIL
 
       runHook postInstall
     '';
+
+    # Drop nixpkgs's postInstall (`mkdir $su/bin; mv $out/bin/su $su/bin`).
+    # We absorb `su` into the multicall and removed the `su` output, so `$su`
+    # is empty and the move expands to `mv $out/bin/su /bin/su` — which fails
+    # in CI's strict sandbox (and in a relaxed sandbox silently eats our `su`
+    # applet symlink). The installPhase override alone doesn't suppress it.
+    postInstall = "";
   });
 
   # X+Z final link: dispatcher.o + each tool's renamed .o files (bitcode)
