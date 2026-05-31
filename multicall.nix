@@ -345,6 +345,18 @@ DISPATCHER_TAIL
       while IFS=$'\t' read -r tool san; do
         ln -s shadow "$out/bin/$tool"
       done < src/multicall/applets.list
+
+      # Embed man pages. We skip `make install`, so the docbook→roff pages are
+      # never generated/installed in our tree. Harvest the English set from the
+      # vanilla static shadow `man` output: it's the SAME derivation base as our
+      # multicall (pkgsStatic.shadow → PAM-disabled, no SELinux), so the page
+      # content matches our binary's feature set. The dynamic build's man would
+      # document PAM behaviour this static binary doesn't have. withMan picks
+      # these up for the unpin/ ZIP; translations (man/<lang>/) stay out.
+      mkdir -p "$out/share"
+      cp -a ${pkgs.pkgsStatic.shadow.man}/share/man "$out/share/man"
+      chmod -R u+w "$out/share/man"
+
       runHook postInstall
     '';
   });
