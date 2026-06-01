@@ -264,56 +264,9 @@ let
       fi
       echo "=== applets.list ($(wc -l < multicall/applets.list) entries) ==="
 
-      # Dispatcher: basename(argv[0]) → <san>_main, plus `shadow <applet>`
-      # fallback so the multicall is callable without renaming.
-      {
-        echo '#include <string.h>'
-        echo '#include <stdio.h>'
-        echo
-        # Declarations: deduplicate over san (multiple aliases → same _main).
-        awk -F'\t' '{ if (!(seen[$2]++)) print "int " $2 "_main(int argc, char *argv[]);" }' \
-          multicall/applets.list
-        echo
-        echo 'struct applet { const char *name; int (*fn)(int, char **); };'
-        echo
-        echo 'static const struct applet applets[] = {'
-        while IFS=$'\t' read -r tool san; do
-          printf '    {"%s", %s_main},\n' "$tool" "$san"
-        done < multicall/applets.list
-        echo '    {NULL, NULL}'
-        echo '};'
-        cat <<'DISPATCHER_TAIL'
-
-int main(int argc, char *argv[])
-{
-    char *name = argv[0];
-    char *slash = strrchr(name, '/');
-    if (slash) name = slash + 1;
-    if (strncmp(name, "lt-", 3) == 0) name += 3;
-
-    if (strcmp(name, "shadow") == 0) {
-        if (argc < 2) {
-            fprintf(stderr, "shadow: usage: %s <applet> [args...]\n", argv[0]);
-            fprintf(stderr, "applets (%zu):", sizeof(applets)/sizeof(applets[0]) - 1);
-            for (const struct applet *a = applets; a->name; a++)
-                fprintf(stderr, " %s", a->name);
-            fprintf(stderr, "\n");
-            return 1;
-        }
-        name = argv[1];
-        argv++;
-        argc--;
-    }
-
-    for (const struct applet *a = applets; a->name; a++) {
-        if (strcmp(name, a->name) == 0)
-            return a->fn(argc, argv);
-    }
-    fprintf(stderr, "shadow: unknown applet '%s'\n", name);
-    return 1;
-}
-DISPATCHER_TAIL
-      } > multicall/dispatcher.c
+      # Dispatcher from multicall/applets.list (TSV name\tfn) via the shared
+      # Recipe-A generator (see nix-lib lib.multicallTableDispatcherC).
+${lib.multicallTableDispatcherC { name = "shadow"; }}
 
       $CC -O2 -c -o multicall/dispatcher.o multicall/dispatcher.c
 
