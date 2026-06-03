@@ -49,11 +49,11 @@ The first invocation will offer to add the [unpins.cachix.org](https://unpins.ca
 All 47 shadow man pages are embedded — read with `unpin man shadow <page>`:
 
 ```bash
-unpin man shadow passwd       # an applet
+unpin man shadow passwd       # a program
 unpin man shadow login.defs   # a config-file page (man5)
 ```
 
-Beyond the per-applet pages this covers the config-file references (`login.defs.5`, `shadow.5`, `passwd.5`, `gshadow.5`, `suauth.5`, `subuid.5`, `subgid.5`, `limits.5`, `login.access.5`, `porttime.5`, `faillog.5`) and the `shadow.3` C API.
+Beyond the per-program pages this covers the config-file references (`login.defs.5`, `shadow.5`, `passwd.5`, `gshadow.5`, `suauth.5`, `subuid.5`, `subgid.5`, `limits.5`, `login.access.5`, `porttime.5`, `faillog.5`) and the `shadow.3` C API.
 
 ## Manual download
 
