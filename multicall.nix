@@ -286,6 +286,15 @@ ${lib.multicallTableDispatcherC { name = "shadow"; }}
       cd ..
     '';
 
+    # Skip upstream's `make check`: nixpkgs shadow 4.19 (26.05) runs a
+    # checkPhase (`make check`), which relinks each per-tool `src/<tool>`
+    # binary. After X+Z's postBuild renamed `main` → `<tool>_main` in every
+    # tool's .o files, those relinks fail with `undefined symbol: main`
+    # (crt1.o's `_start_c` references it). Same reason we override installPhase
+    # below. We don't need upstream's tests; the dispatcher smoke is the floor.
+    doCheck = false;
+    doInstallCheck = false;
+
     # Skip upstream's `make install`: after X+Z's per-tool recompile
     # (which renamed `main` to `<tool>_main` in every tool's .o files),
     # automake's install rule would relink each src/<tool> binary
