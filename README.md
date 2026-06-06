@@ -1,6 +1,6 @@
 # shadow
 
-Standalone build of [shadow](https://github.com/shadow-maint/shadow), shipped as a single binary providing 34 programs — `login`, `passwd`, `su`, `useradd`, `userdel`, `usermod`, `groupadd`, `groupdel`, `groupmod`, `chage`, `chfn`, `chsh`, `expiry`, `faillog`, `gpasswd`, `newgrp`, `chpasswd`, `chgpasswd`, `groupmems`, `grpck`, `grpconv`, `grpunconv`, `logoutd`, `newusers`, `nologin`, `pwck`, `pwconv`, `pwunconv`, `newuidmap`, `newgidmap`, `getsubids`, `vipw`, `sg`, `vigr`.
+Standalone build of [shadow](https://github.com/shadow-maint/shadow), shipped as a single binary providing 34 programs — `login`, `passwd`, `su`, `useradd`, `groupadd`, `chage`, … (full list: `unpin info shadow`).
 
 [![CI](https://github.com/unpins/shadow/actions/workflows/shadow.yml/badge.svg)](https://github.com/unpins/shadow/actions)
 ![Linux](https://img.shields.io/badge/Linux-✓-success?logo=linux&logoColor=white)
@@ -25,7 +25,7 @@ To install the programs onto your PATH:
 unpin install shadow
 ```
 
-`unpin install shadow` creates the `login`, `passwd`, `su`, `useradd`, and 30 other commands.
+`unpin install shadow` creates the `login`, `passwd`, `su`, `useradd`, and 30 other commands (full list: `unpin info shadow`).
 
 `lastlog` is absent because configure disables it when wtmpx headers are missing (musl). PAM-only tools (none in the default shadow build) are configure-disabled automatically because pkgsStatic does not link libpam.
 
