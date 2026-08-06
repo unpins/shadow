@@ -37,7 +37,6 @@
       # not as separate programs.
       engine = "unpin-llvm";
       multicall = {
-        defaultProgram = "chage";
         # shadow's chpasswd/chgpasswd/salt.c call libxcrypt's `crypt_gensalt`,
         # which musl's libc.a does NOT provide. The engine already builds shadow
         # against libxcrypt's (bitcode) libcrypt.a, so it sits in the self-fold's
