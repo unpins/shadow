@@ -102,10 +102,19 @@
           # ("expected function body after function declarator"). Define it to
           # the nothrow attribute (its GCC value) so the declarations parse.
           # Harmless for the other (util-linux-style) headers that already use
-          # the macro. Pushed via NIX_CFLAGS_COMPILE on the env (structuredAttrs
-          # is off here, so a plain string attr is fine).
+          # the macro.
           NIX_CFLAGS_COMPILE = (old.NIX_CFLAGS_COMPILE or "")
             + " -D__THROW=__attribute__((__nothrow__))";
+          # The bitcode multicall hook appends a per-program postBuild block.
+          # At 32 programs that string is 147 KB, over the kernel's
+          # MAX_ARG_STRLEN (128 KB per env string), and the build dies with
+          # "executing bash: Argument list too long" before any phase runs.
+          # It is not new headroom that was lost: measured against the previous
+          # nix-lib pin the same string was 127 KB -- 97% of the limit. Same
+          # fix, same reason, as unpins/util-linux at 118 programs:
+          # structuredAttrs ships attrs via .attrs.json instead of the
+          # environment, sidestepping the per-string limit.
+          __structuredAttrs = true;
         });
     };
 }
