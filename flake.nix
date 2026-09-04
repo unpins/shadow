@@ -93,7 +93,12 @@
       build = pkgs:
         pkgs.pkgsStatic.shadow.overrideAttrs (old: {
           outputs = [ "out" ];
-          postInstall = "";
+          # `shadow.3` and `getspnam.3` document libshadow's C API, which this
+          # binary does not export -- pages for something nobody here can call.
+          # Same rule as util-linux: ship the programs' pages, not the library's.
+          postInstall = ''
+            rm -rf "$out/share/man/man3"
+          '';
           # libxcrypt's <crypt.h> tags its prototypes with `__THROW`, defined
           # in <sys/cdefs.h> only under `defined(__GNUC__) && !__cplusplus`.
           # Under the engine's clang the toolchain's embedded musl cdefs.h

@@ -14,9 +14,9 @@ Linux-only: shadow uses Linux-specific `/etc/{passwd,shadow,group,gshadow}` sema
 Run a program with [unpin](https://github.com/unpins/unpin):
 
 ```bash
-unpin shadow passwd alice
-unpin shadow useradd -m bob
-unpin shadow groupadd dev
+unpin shadow --unpin-program=passwd alice
+unpin shadow --unpin-program=useradd -m bob
+unpin shadow --unpin-program=groupadd dev
 ```
 
 To install the programs onto your PATH:
@@ -31,26 +31,26 @@ unpin install shadow
 
 ## Man pages
 
-All 47 shadow man pages are embedded — read with `unpin man shadow <page>`:
+All 45 shadow program and config-file man pages are embedded — read with `unpin man shadow <page>`:
 
 ```bash
 unpin man shadow passwd       # a program
 unpin man shadow login.defs   # a config-file page (man5)
 ```
 
-Beyond the per-program pages this covers the config-file references (`login.defs.5`, `shadow.5`, `passwd.5`, `gshadow.5`, `suauth.5`, `subuid.5`, `subgid.5`, `limits.5`, `login.access.5`, `porttime.5`, `faillog.5`) and the `shadow.3` C API.
+Beyond the per-program pages this covers the config-file references (`login.defs.5`, `shadow.5`, `passwd.5`, `gshadow.5`, `suauth.5`, `subuid.5`, `subgid.5`, `limits.5`, `login.access.5`, `porttime.5`, `faillog.5`). The section-3 libshadow C API pages are dropped — this package ships the programs, not the dev library.
 
 ## Build locally
 
 ```bash
 nix build github:unpins/shadow
-./result/bin/shadow passwd --help
+./result/bin/shadow --unpin-program=passwd --help
 ```
 
 Or run directly:
 
 ```bash
-nix run github:unpins/shadow -- useradd --help
+nix run github:unpins/shadow -- --unpin-program=useradd --help
 ```
 
 The first invocation will offer to add the [unpins.cachix.org](https://unpins.cachix.org) substituter so most pulls come pre-built.
