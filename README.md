@@ -27,7 +27,7 @@ unpin install shadow
 
 `unpin install shadow` creates the `login`, `passwd`, `su`, `useradd`, and 30 other commands (full list: `unpin info shadow`).
 
-`lastlog` is absent because configure disables it when wtmpx headers are missing (musl). PAM-only tools (none in the default shadow build) are configure-disabled automatically because pkgsStatic does not link libpam.
+`lastlog` is not included, and PAM is not supported.
 
 ## Man pages
 
