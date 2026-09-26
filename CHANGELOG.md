@@ -2,6 +2,8 @@
 
 ## [Unreleased]
 
+## [4.19.4-2] - 2026-09-26
+
 ### Fixed
 
 - `unpin install shadow` now creates the commands. In the v4.19.4-1 release it
